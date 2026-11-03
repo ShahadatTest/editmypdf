@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DragEvent as ReactDragEvent, ReactNode } from "react";
 import { scanType3Fonts, type ContentElement } from "./content.ts";
+import { annotatedDownloadName } from "./downloadName.ts";
 import { exportAnnotatedPdf } from "./exportPdf.ts";
 import { clamp } from "./geometry.ts";
 import { useHistory } from "./history.ts";
@@ -605,7 +606,8 @@ export function Editor({ sessionId }: { sessionId: string }) {
         setLoaded(next);
       } catch (cause) {
         if (!cancelled && loadId.current === id) {
-          setError(cause instanceof Error ? cause.message : "Could not open this document");
+          console.error(cause);
+          setError("Could not open this document.");
         }
       }
     })();
@@ -737,11 +739,13 @@ export function Editor({ sessionId }: { sessionId: string }) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = current.name.replace(/\.pdf$/i, "") + "-annotated.pdf";
+      link.download = annotatedDownloadName(current.name);
       link.click();
-      URL.revokeObjectURL(url);
+      // Revoke after a tick so Safari/Firefox can start the download first.
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not export the PDF");
+      console.error(cause);
+      setError("The PDF could not be written.");
     } finally {
       setExporting(false);
     }
