@@ -167,7 +167,8 @@ and `robots.txt` says where they are. The files are static, so no request is mad
 - `src/index.css`: design tokens (palette, type scale, spacing, radii, shadows) and the editor's
   surface aliases. Both the site and the editor are built from these.
 - `src/site/`: the marketing site (layout, pages, `site.css`, Markdown renderer, page meta).
-- `src/data/posts.ts`: blog posts as Markdown, with dates and tags.
+- `src/data/posts.ts`: blog posts as Markdown, with dates and tags; `scripts/blog-cards.mjs` draws each
+  post's link-preview card and card picture into `public/blog/cards/`.
 - `src/data/competitors.ts`: every comparison fact, with sources and the date it was checked.
 - `src/data/faq.ts`, `src/data/product.ts`: FAQ entries; product name, description, routes and
   the base-path helpers (`publicUrl`, `routeHref`, `siteOrigin`).

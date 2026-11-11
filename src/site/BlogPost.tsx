@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowRight, BookOpen, ChevronDown, ChevronRight, ListTree } from "lucide-react";
 import { formatDate, postBySlug, relatedPosts } from "../data/posts.ts";
-import { PRODUCT, ROUTES } from "../data/product.ts";
+import { PRODUCT, ROUTES, siteOrigin } from "../data/product.ts";
 import { Markdown } from "./Markdown.tsx";
 import { headingsOf, readingTime, type Heading } from "./markdown.ts";
 import { NotFound } from "./NotFound.tsx";
@@ -104,7 +104,8 @@ function Article({ slug }: { slug: string }) {
     title: post.title,
     description: post.description,
     type: "article",
-    keywords: post.tags,
+    keywords: [...post.tags, ...(post.keywords ?? [])],
+    image: post.image,
     article: { published: post.date, tags: post.tags },
     jsonLd: [
       {
@@ -116,7 +117,8 @@ function Article({ slug }: { slug: string }) {
         dateModified: post.date,
         author: { "@type": "Organization", name: PRODUCT.name },
         publisher: { "@type": "Organization", name: PRODUCT.name },
-        keywords: post.tags.join(", "),
+        keywords: [...post.tags, ...(post.keywords ?? [])].join(", "),
+        ...(post.image ? { image: `${siteOrigin()}${post.image.src}` } : {}),
         timeRequired: `PT${minutes}M`,
       },
       breadcrumbs([

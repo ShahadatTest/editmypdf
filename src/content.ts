@@ -1,7 +1,7 @@
 import { AnnotationMode, OPS, Util, type PDFPageProxy, type PageViewport } from "pdfjs-dist";
 import { collectGlyphUse, editableFamily, familyBytes, missingGlyphs, rememberCoverage, type GlyphUse } from "./fontFix.ts";
 import { bareName, traitsOfName, weightOfName, type FaceKind, type FaceTraits } from "./fontNames.ts";
-import { fontOffer, supplementFamilies, supplementOf, type FontOffer, type Relation } from "./supplementFonts.ts";
+import { fontOffer, standInFamilies, standInOf, supplementFamilies, supplementOf, type FontOffer, type Relation } from "./supplementFonts.ts";
 import { measureWidth } from "./textLayout.ts";
 import { loadPdf, type LoadedPdf } from "./pdf.ts";
 import {
@@ -698,11 +698,14 @@ function fontObject(page: PDFPageProxy, name: string): Promise<PdfFontObject | n
 }
 
 async function faceFor(name: string, font: PdfFontObject | null, style: PdfFontStyle | undefined, fixed: string | null): Promise<Face> {
-  const fallback = await fallbackFamily(name, font, style);
+  const { family: fallback, standIn } = await fallbackFamily(name, font, style);
   const weight = font?.black ? 900 : font?.bold ? 700 : 400;
   const slant: Face["style"] = font?.italic ? "italic" : "normal";
   const matrix = font?.fontMatrix?.[0];
   const unitScale = typeof matrix === "number" && Number.isFinite(matrix) && matrix !== 0 ? Math.abs(matrix) : 0.001;
+  // A font the PDF names without embedding it is set in the face that stands in for it, the one
+  // the export embeds; the stand-in is a cut of its own, registered regular like the page's faces.
+  if (standIn) return { family: fallback, weight: 400, style: "normal", unitScale };
   if (font?.systemFontInfo?.css) return { family: font.systemFontInfo.css, weight, style: slant, unitScale };
   const loaded = font?.loadedName || name;
   if (fixed) return { family: `"${fixed}", "${loaded}", ${fallback}`, weight, style: slant, unitScale };
@@ -766,8 +769,14 @@ const GENERIC: Record<FaceKind, { faces: string[]; generic: string }> = {
 // that most systems have, then the generic family. pdf.js picks its generic from the PDF's font
 // flags, which many generators set wrongly (a text serif flagged plain, so a missing letter came
 // out sans-serif); the font's own name is trusted first, and the flags only when the name says
-// nothing. `loadedName` is the pdf.js font name the supplement is recorded under.
-async function fallbackFamily(loadedName: string, font: PdfFontObject | null, style: PdfFontStyle | undefined): Promise<string> {
+// nothing. `loadedName` is the pdf.js font name the supplement is recorded under. For a font the
+// PDF does not embed, the supplement stands in for the whole font (`standInFamilies`), and
+// `standIn` says whether one does.
+async function fallbackFamily(
+  loadedName: string,
+  font: PdfFontObject | null,
+  style: PdfFontStyle | undefined,
+): Promise<{ family: string; standIn: boolean }> {
   const raw = font?.name ?? "";
   const name = bareName(raw);
   const known = KNOWN_FAMILIES.find(([pattern]) => pattern.test(name));
@@ -780,11 +789,16 @@ async function fallbackFamily(loadedName: string, font: PdfFontObject | null, st
   const bold = !!(font?.bold || font?.black || traits.bold);
   const italic = !!(font?.italic || traits.italic);
   const weight = font?.black ? 900 : weightOfName(raw, bold);
+  const ask = { name, bold, italic, weight, kind };
   const [supplement, styled] = await Promise.all([
-    font?.systemFontInfo?.css ? Promise.resolve([]) : supplementFamilies(loadedName, { name, bold, italic, weight, kind }),
+    font?.systemFontInfo?.css ? standInFamilies(loadedName, ask) : supplementFamilies(loadedName, ask),
     styledAlias(faces, bold, italic),
   ]);
-  return [...supplement, ...(styled ? [styled] : []), ...faces].map((face) => `"${face}"`).concat(GENERIC[kind].generic).join(", ");
+  const family = [...(supplement ?? []), ...(styled ? [styled] : []), ...faces]
+    .map((face) => `"${face}"`)
+    .concat(GENERIC[kind].generic)
+    .join(", ");
+  return { family, standIn: !!font?.systemFontInfo?.css && supplement !== null };
 }
 
 function kindOf(name: string, font: PdfFontObject | null, style: PdfFontStyle | undefined): FaceKind {
@@ -849,11 +863,13 @@ export function patchMissingGlyphs(patch: Pick<PatchAnnotation, "text" | "pdfFon
 }
 
 // Where the characters a text patch's faces lack come from: by supplement, the characters it
-// supplies (so the inspector can say "3, 4 and 5 are set in Tinos Bold"), the characters no
-// supplement has (shown in a substitute face; the export paints the patch), and the font file
+// supplies (so the inspector can say "3, 4 and 5 are set in Tinos Bold"), the fonts the PDF
+// names without embedding them and the face each is set in instead, the characters no supplement
+// or stand-in has (shown in a substitute face; the export paints the patch), and the font file
 // the user could add for the first face that has no supplement of its own design.
 export type GlyphReport = {
   supplied: { label: string; relation: Relation; chars: string[] }[];
+  standIns: { name: string; label: string; relation: Relation }[];
   unsupplied: string[];
   offer: FontOffer | null;
 };
@@ -864,9 +880,21 @@ export function patchGlyphReport(patch: Pick<PatchAnnotation, "text" | "pdfFont"
       ? patch.spans
       : [{ text: patch.text, pdfFont: patch.pdfFont }];
   const supplied = new Map<string, GlyphReport["supplied"][number]>();
+  const standIns = new Map<string, GlyphReport["standIns"][number]>();
   const unsupplied: string[] = [];
   let offer: FontOffer | null = null;
   for (const span of spans) {
+    const standIn = standInOf(span.pdfFont);
+    if (standIn) {
+      const name = standIn.pageFont;
+      if (!standIns.has(name)) standIns.set(name, { name, label: standIn.label, relation: standIn.relation });
+      offer ??= fontOffer(span.pdfFont);
+      for (const char of span.text) {
+        if (/\s/u.test(char) || standIn.covers(char.codePointAt(0) ?? -1) || unsupplied.includes(char)) continue;
+        unsupplied.push(char);
+      }
+      continue;
+    }
     const missing = missingGlyphs(span.pdfFont, span.text);
     if (missing.length === 0) continue;
     const supplement = supplementOf(span.pdfFont);
@@ -885,7 +913,7 @@ export function patchGlyphReport(patch: Pick<PatchAnnotation, "text" | "pdfFont"
       }
     }
   }
-  return { supplied: [...supplied.values()], unsupplied, offer };
+  return { supplied: [...supplied.values()], standIns: [...standIns.values()], unsupplied, offer };
 }
 
 function fontRegistered(family: string): boolean {

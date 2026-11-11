@@ -2,7 +2,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { DragEvent as ReactDragEvent } from "react";
 import { Link } from "react-router";
-import { getDocument } from "pdfjs-dist";
 import {
   ArrowRight,
   Check,
@@ -21,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useVisitCounter } from "./counter.ts";
 import { PRODUCT, publicUrl, routeHref, ROUTES } from "./data/product.ts";
-import { createBlankPdf, loadPdf } from "./pdf.ts";
+import { createBlankPdf, loadPdf, openDocument } from "./pdf.ts";
 import { navigate, plainClick } from "./router.ts";
 import {
   createSession,
@@ -62,7 +61,7 @@ function formatBytes(bytes: number): string {
 async function renderPreview(id: string): Promise<Preview | null> {
   const saved = await readSession(id);
   if (!saved) return null;
-  const task = getDocument({ data: saved.bytes.slice(0) });
+  const task = openDocument(saved.bytes.slice(0));
   const doc = await task.promise;
   try {
     const page = await doc.getPage(1);

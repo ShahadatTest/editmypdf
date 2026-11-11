@@ -32,8 +32,9 @@ export function Privacy() {
           temporary blob link. No step in that chain talks to a server.
         </p>
         <p>
-          The app makes network requests only for its own static files: its JavaScript, stylesheets, fonts
-          and the emoji images under the emoji tool.{" "}
+          The app makes network requests only for its own static files: its JavaScript, stylesheets, fonts,
+          the helper files pdf.js loads for some documents, the sample PDF and the emoji images under the
+          emoji tool.{" "}
           {ANALYTICS.any
             ? "The editing page loads no analytics script, no error reporter and no third-party embed; the only third-party script anywhere on the site is the visit counter described below."
             : "There is no analytics script, no error reporter, no account system and no third-party embed."}

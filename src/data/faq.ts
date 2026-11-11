@@ -14,7 +14,7 @@ export const FAQ: FaqEntry[] = [
   {
     question: "Does Edit My PDF upload my PDF anywhere?",
     answer:
-      `No. The file is read by pdf.js inside a web worker in your browser, edited there, and written back with pdf-lib in the same tab. The only network requests the app makes are for its own code, fonts and emoji images. ${TRACKING} See the [privacy page](/privacy) for exactly what is stored and where.`,
+      `No. The file is read by pdf.js inside a web worker in your browser, edited there, and written back with pdf-lib in the same tab. The only network requests the app makes are for its own files: code, fonts, the helper files pdf.js loads for some documents, the sample PDF and the emoji images. ${TRACKING} See the [privacy page](/privacy) for exactly what is stored and where.`,
   },
   {
     question: "Can I change the words that are already printed in the PDF?",

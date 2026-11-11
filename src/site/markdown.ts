@@ -6,7 +6,7 @@ export function slugify(text: string): string {
   return text
     .toLowerCase()
     .replace(/<[^>]+>/g, "")
-    .replace(/&[a-z]+;/g, "")
+    .replace(/&(?:[a-z]+|#\d+);/g, "")
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-");
@@ -79,6 +79,7 @@ const EMOJI: Record<string, string> = {
   smile: "1f642",
   "star-struck": "1f929",
   "raised-hands": "1f64c",
+  airplane: "2708",
 };
 
 function emojiChar(id: string): string {
@@ -257,6 +258,16 @@ export const marked = new Marked({
       const text = this.parser.parseInline(tokens);
       return `<h${depth} id="${slugify(text)}">${text}</h${depth}>\n`;
     },
+    // ![alt](/blog/file.webp#1600x1200 "Caption"): an image from public/ as a figure. The hash
+    // carries the file's pixel size, so the browser reserves its box before it loads.
+    image({ href, title, text }: Tokens.Image) {
+      const [path, size = ""] = href.split("#");
+      const [width, height] = size.split("x").map(Number);
+      const src = path.startsWith("/") ? publicUrl(path) : path;
+      const dims = width && height ? ` width="${width}" height="${height}"` : "";
+      const img = `<img class="bp-image" src="${src}" alt="${text}"${dims} loading="lazy" decoding="async">`;
+      return title ? `<figure class="bp-figure">${img}<figcaption>${title}</figcaption></figure>` : img;
+    },
     link({ href, title, tokens }: Tokens.Link) {
       const text = this.parser.parseInline(tokens);
       const external = /^https?:\/\//.test(href);
@@ -276,6 +287,13 @@ export const marked = new Marked({
   extensions: [directiveExtension, emojiExtension, iconExtension],
 });
 
+// The entities marked writes for quotes and the like, back to characters, for text React escapes itself.
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'" };
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(amp|lt|gt|quot|#39);/g, (_, name: string) => ENTITIES[name]);
+}
+
 export type Heading = { id: string; text: string; depth: 2 | 3 };
 
 // The second- and third-level headings of a post, with the ids the renderer above gives them, for
@@ -286,7 +304,7 @@ export function headingsOf(markdown: string): Heading[] {
     .filter((token): token is Tokens.Heading => token.type === "heading" && (token.depth === 2 || token.depth === 3))
     .map((token) => {
       const html = marked.parseInline(token.text, { async: false }) as string;
-      return { id: slugify(html), text: html.replace(/<[^>]+>/g, ""), depth: token.depth as 2 | 3 };
+      return { id: slugify(html), text: decodeEntities(html.replace(/<[^>]+>/g, "")).trim(), depth: token.depth as 2 | 3 };
     });
 }
 

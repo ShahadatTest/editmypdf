@@ -9,9 +9,9 @@ export type PageMeta = {
   titleSuffix?: boolean;
   description: string;
   type?: "website" | "article";
-  // Image for link previews: absolute, or relative to the site (the base path is added); defaults
-  // to the site card.
-  image?: string;
+  // Image for link previews: its address absolute, or relative to the site (the base path is
+  // added); defaults to the site card.
+  image?: { src: string; alt: string; width: number; height: number };
   keywords?: string[];
   noindex?: boolean;
   // For a blog post: the dates and tags go out as article:* tags.
@@ -20,7 +20,7 @@ export type PageMeta = {
 };
 
 // The site card's dimensions and alt text, the same for every page that uses it.
-const CARD = { width: "1200", height: "630", alt: "Edit My PDF: edit the text in a PDF without disturbing the page" };
+const CARD = { width: 1200, height: 630, alt: "Edit My PDF: edit the text in a PDF without disturbing the page" };
 
 // The head tags a page resolves to, with URLs made absolute where the origin is known.
 export type ResolvedMeta = {
@@ -45,7 +45,7 @@ export type ResolvedMeta = {
 
 export function resolveMeta(meta: PageMeta, pathname: string): ResolvedMeta {
   const origin = siteOrigin();
-  const image = meta.image ?? "/og.png";
+  const image = meta.image ?? { src: "/og.png", ...CARD };
   return {
     siteName: PRODUCT.name,
     title: meta.titleSuffix === false ? meta.title : `${meta.title} — ${PRODUCT.name}`,
@@ -54,10 +54,10 @@ export function resolveMeta(meta: PageMeta, pathname: string): ResolvedMeta {
     keywords: meta.keywords?.join(", ") ?? "",
     type: meta.type ?? "website",
     url: `${origin}${canonicalPath(pathname)}`,
-    image: image.startsWith("http") ? image : `${origin}${image}`,
-    imageWidth: meta.image ? "" : CARD.width,
-    imageHeight: meta.image ? "" : CARD.height,
-    imageAlt: meta.image ? "" : CARD.alt,
+    image: image.src.startsWith("http") ? image.src : `${origin}${image.src}`,
+    imageWidth: String(image.width),
+    imageHeight: String(image.height),
+    imageAlt: image.alt,
     locale: "en_GB",
     articlePublished: meta.article?.published ?? "",
     articleModified: meta.article?.modified ?? meta.article?.published ?? "",

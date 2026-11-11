@@ -29,6 +29,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm test
       # Reads the site's address from the Pages settings: base_path is "/<repo>" for a project site
       # and "" for a user site or a custom domain; base_url is the full address, lowercased as
       # GitHub serves it.

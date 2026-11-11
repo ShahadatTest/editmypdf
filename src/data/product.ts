@@ -20,7 +20,8 @@ export const PRODUCT = {
   },
   // The stack the privacy claims rest on. Verified against the source: pdf.js parses and renders in
   // a web worker, pdf-lib writes the file, IndexedDB and localStorage hold the sessions, and the
-  // download is a blob URL. The only fetch() in the app loads its own emoji images.
+  // download is a blob URL. The app's own fetch() calls load its own files: the sample PDF, the
+  // supplement fonts and the emoji images; pdf.js fetches its helper files from the same origin.
   libraries: {
     reader: { name: "pdf.js", version: "6", url: "https://mozilla.github.io/pdf.js/" },
     writer: { name: "pdf-lib", version: "1.17", url: "https://pdf-lib.js.org/" },

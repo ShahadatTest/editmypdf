@@ -3,13 +3,37 @@ import {
   AnnotationMode,
   getDocument,
   GlobalWorkerOptions,
+  type PDFDocumentLoadingTask,
   type PDFDocumentProxy,
   type PDFPageProxy,
   type PageViewport,
 } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { PDFJS_RESOURCES } from "virtual:pdfjs-resources";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
+
+// Where pdf.js fetches what it needs while a document is open, all from this site's own origin
+// (vite.config.ts copies the files out of pdfjs-dist): the WebAssembly decoders for JPEG 2000 and
+// JBIG2 images and for ICC colour, the predefined CMaps of CJK fonts, the CMYK profile and the
+// standard 14 fonts. All four addresses have to be given together: pdf.js lets its worker fetch
+// them, and supports ICC colour at all, only when the CMap, font and wasm addresses are all set.
+const resources = `${import.meta.env.BASE_URL}${PDFJS_RESOURCES}`;
+const RESOURCE_OPTIONS = {
+  wasmUrl: `${resources}wasm/`,
+  iccUrl: `${resources}iccs/`,
+  cMapUrl: `${resources}cmaps/`,
+  cMapPacked: true,
+  standardFontDataUrl: `${resources}standard_fonts/`,
+};
+
+type DocumentOptions = Omit<NonNullable<Parameters<typeof getDocument>[0]>, "data">;
+
+// Every document the app opens with pdf.js goes through here, so pdf.js always knows where its
+// resources are, whether the document is being edited or drawn as a thumbnail.
+export function openDocument(data: Uint8Array, options: DocumentOptions = {}): PDFDocumentLoadingTask {
+  return getDocument({ data, ...RESOURCE_OPTIONS, ...options });
+}
 
 export type LoadedPdf = {
   name: string;
@@ -28,7 +52,7 @@ export async function createBlankPdf(): Promise<Uint8Array> {
 export async function loadPdf(bytes: Uint8Array, name: string): Promise<LoadedPdf> {
   const stored = new Uint8Array(bytes);
   // Keeping the converted font bytes lets content editing register corrected copies of the faces.
-  const doc = await getDocument({ data: stored.slice(0), fontExtraProperties: true }).promise;
+  const doc = await openDocument(stored.slice(0), { fontExtraProperties: true }).promise;
   const pages: PDFPageProxy[] = [];
   const viewports: PageViewport[] = [];
   for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {

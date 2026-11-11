@@ -112,6 +112,16 @@
   border-bottom: 1px solid var(--rule);
 }
 
+/* The drawn picture: the same ground as the fallback cover, shown a little dimmer on dark pages. */
+.post-cover-image {
+  object-fit: cover;
+  background: var(--paper-2);
+}
+
+html[data-appearance="dark"] .post-cover-image {
+  filter: brightness(0.88) saturate(0.95);
+}
+
 .post-cover-ground {
   fill: color-mix(in oklab, var(--tone) 16%, var(--paper-2));
 }
@@ -610,6 +620,27 @@
   text-transform: uppercase;
 }
 
+/* ---- Post body: image figures --------------------------------------------
+   Infographics from public/blog, drawn on their own light paper in both themes, edge to edge in
+   the figure's frame with the caption below. */
+
+.prose .bp-figure {
+  padding: 0;
+  overflow: hidden;
+}
+
+.bp-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.prose .bp-figure figcaption {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-5) var(--sp-4);
+  border-top: 1px solid var(--rule);
+}
+
 /* ---- Post body: drawn figures --------------------------------------------
    Small diagrams written as HTML in the posts: miniature pages, a content stream with its
    edits marked, a glyph grid, a line of kerned words, a flow of tiles. */
@@ -913,6 +944,66 @@
   .bp-dg-arrow {
     display: none;
   }
+}
+
+/* Before-and-after pairs of miniature pages (the release post): a picture block, a line of real
+   text and a colour swatch on the page, and a strip of font-header bytes. */
+.bp-ba {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.bp-ba .bp-dg-arrow {
+  font-size: 18px;
+}
+
+.bp-mini-page.bp-narrow {
+  width: 104px;
+  padding: 12px 10px 18px;
+  gap: 6px;
+}
+
+.bp-pic {
+  display: block;
+  height: 36px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #d8dde8 0%, #9aa6bf 55%, #5f6d8c 100%);
+}
+
+.bp-pic.bp-missing {
+  border: 1px dashed var(--bad);
+  background: #fff;
+}
+
+.bp-text {
+  display: block;
+  color: #2f2e2a;
+  font: 600 11px/1.25 var(--ff-sans);
+  letter-spacing: 0.02em;
+}
+
+.bp-swatch {
+  display: block;
+  height: 24px;
+  border-radius: 3px;
+  background: var(--sw);
+}
+
+.bp-glyph-grid.bp-bytes {
+  grid-template-columns: repeat(4, 32px);
+}
+
+.bp-glyph-grid.bp-bytes b {
+  width: 32px;
+  height: 24px;
+  font: 600 11px/1 var(--ff-mono);
+}
+
+.bp-glyph-grid b.bp-bad {
+  border-color: var(--bad);
+  color: var(--bad);
+  font-weight: 700;
 }
 
 /* Tracked small caps as pdf.js reports them: a phantom space after every letter. */

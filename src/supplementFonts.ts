@@ -85,8 +85,9 @@ const BY_KIND: Record<FaceKind, string> = { serif: "noto-serif", sans: "noto-san
 
 type BundledCut = { font: Bundled; relation: "same" | "close" | "kind"; weight: number; style: FaceStyle; family: string };
 
-// What was chosen for a page font, by pdf.js font name.
-type Choice = { ask: FontAsk; traits: FaceTraits; bundled: BundledCut | null };
+// What was chosen for a page font, by pdf.js font name. `standIn` marks a font the PDF names
+// without embedding it, whose every character the supplement sets (`standInFamilies`).
+type Choice = { ask: FontAsk; traits: FaceTraits; bundled: BundledCut | null; standIn: boolean };
 
 const choices = new Map<string, Choice>();
 let catalogPromise: Promise<Catalog | null> | null = null;
@@ -115,8 +116,38 @@ export async function supplementFamilies(loadedName: string, ask: FontAsk): Prom
   const [catalog] = await Promise.all([loadCatalog(), loadUserFonts()]);
   const bundled = catalog ? chooseBundled(catalog, ask) : null;
   if (catalog && bundled) registerBundled(catalog, bundled);
-  choices.set(loadedName, { ask, traits, bundled });
+  choices.set(loadedName, { ask, traits, bundled, standIn: false });
   return [userFamilyName(traitKey(traits)), ...(bundled ? [bundled.family] : [])];
+}
+
+// A PDF may name a font without embedding it (most often one of the standard fonts every reader
+// has, Times, Helvetica and Courier); pdf.js then draws it in an installed face, and there are no
+// bytes to write an edit with. Such a font is stood in for as a whole by its supplement: the font
+// the user supplied for the face (the installed copy, or a file), else the bundled design with the
+// same metrics, in the font's own cut, so the editor shows and the export embeds the same face.
+// Resolves to the families to set the font's text in, as `supplementFamilies` does, or null when
+// nothing of the font's design stands in for it: a Noto face of the same kind only would change
+// every letter, so such text keeps the installed face and is painted on download.
+export async function standInFamilies(loadedName: string, ask: FontAsk): Promise<string[] | null> {
+  if (typeof document === "undefined") return null;
+  const traits: FaceTraits = { stem: stemOf(ask.name), bold: ask.bold, italic: ask.italic };
+  const key = traitKey(traits);
+  const [catalog] = await Promise.all([loadCatalog(), loadUserFonts()]);
+  const chosen = catalog ? chooseBundled(catalog, ask) : null;
+  const bundled = chosen && chosen.relation !== "kind" ? chosen : null;
+  if (!bundled && !userFontFor(key)) return null;
+  if (catalog && bundled) registerBundled(catalog, bundled);
+  choices.set(loadedName, { ask, traits, bundled, standIn: true });
+  return [userFamilyName(key), ...(bundled ? [bundled.family] : [])];
+}
+
+// The face that stands in for a page font the PDF does not embed, with the name the PDF gives the
+// font (without a subset prefix), by pdf.js font name; null for an embedded font, or one nothing
+// stands in for.
+export function standInOf(loadedName: string): (Supplement & { pageFont: string }) | null {
+  const choice = choices.get(loadedName);
+  const supplement = choice?.standIn ? supplementOf(loadedName) : null;
+  return choice && supplement ? { ...supplement, pageFont: choice.ask.name } : null;
 }
 
 function chooseBundled(catalog: Catalog, ask: FontAsk): BundledCut | null {

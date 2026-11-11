@@ -266,7 +266,8 @@ const RELATION_TEXT: Record<Relation, string> = {
 
 // Tells the user where the characters the page's font lacks come from: the supplement they are
 // set in (a bundled open font of the page font's design, the font installed on this computer, or
-// a font file they added), and, for characters no supplement has, that they are shown in a
+// a font file they added), the face set in place of a font the PDF names without including it,
+// and, for characters no supplement has, that they are shown in a
 // substitute face and make the edit an image on download. When nothing bundled is the page's own
 // font, names the page font and offers the installed font (in a browser that can read the
 // installed fonts) and a font file.
@@ -278,13 +279,18 @@ function GlyphNote({ patch, kind }: { patch: PatchAnnotation; kind: ContentKind 
   const input = useRef<HTMLInputElement>(null);
   const local = localFontsSupported();
   const report = patchGlyphReport(patch);
-  if (report.supplied.length === 0 && report.unsupplied.length === 0) return null;
+  if (report.supplied.length === 0 && report.standIns.length === 0 && report.unsupplied.length === 0) return null;
   const offer = report.offer;
   const noun = kind === "paragraph" || kind === "heading" ? kind : "line";
-  const sentences = report.supplied.map((group) => {
+  const standIns = report.standIns.map(
+    (standIn) =>
+      `This PDF names ${standIn.name || "its font"} without including it, so this ${noun} is set in ${standIn.label}, ${RELATION_TEXT[standIn.relation]}, and is written with it on download.`,
+  );
+  const supplied = report.supplied.map((group) => {
     const pageFont = offer?.name && (group.relation === "kind" || group.relation === "close") ? `, ${offer.name}` : "";
     return `${charList(group.chars, "and")} ${group.chars.length === 1 ? "is" : "are"} set in ${group.label}, ${RELATION_TEXT[group.relation]}${pageFont}.`;
   });
+  const sentences = [...standIns, ...supplied];
   if (report.unsupplied.length > 0) {
     sentences.push(
       `The page's font has no ${charList(report.unsupplied, "or")}. ${report.unsupplied.length === 1 ? "It is" : "They are"} shown in a substitute face, and on download this ${noun} is written as an image instead of text.`,

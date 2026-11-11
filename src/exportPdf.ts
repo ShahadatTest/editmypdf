@@ -1,4 +1,5 @@
 import fontkit from "@pdf-lib/fontkit";
+import { soundFontkit } from "./soundFontkit.ts";
 import {
   beginText,
   degrees,
@@ -35,7 +36,7 @@ import { pageFonts, readPageContent, type ContentElement } from "./content.ts";
 import { editCover, graphicCovers, refreshPatchFace } from "./contentEdit.ts";
 import { stripPageText, type StripResult } from "./contentStream.ts";
 import { fontUnicodeMap } from "./fontFix.ts";
-import { supplementOf } from "./supplementFonts.ts";
+import { standInOf, supplementOf } from "./supplementFonts.ts";
 import { blockWidth, decorationLine, measureWidth, paintRun, placeRuns, runDecoration, type PlacedRun } from "./textLayout.ts";
 import { type3FaceBytes } from "./type3Font.ts";
 import { emojiSrc } from "./emojis.ts";
@@ -411,8 +412,10 @@ type PlacedWord = { x: number; text: string; pieces: Piece[] };
 
 // Writes a text patch as text set in the page's own faces, each word where the editor shows it. A
 // character the page's face lacks is set in the font's supplement (supplementFonts.ts) at the
-// same size, colour and spacing, so nothing around it moves. False when a face cannot be embedded
-// or a character has no glyph in the face or its supplement; the caller then paints the patch.
+// same size, colour and spacing, so nothing around it moves; a font the PDF names without
+// embedding it has no face of its own, and every character is set in the face that stands in for
+// it. False when a face cannot be embedded or a character has no glyph in the face or its
+// supplement; the caller then paints the patch.
 async function drawPatchText(
   document: PDFDocument,
   page: PDFPage,
@@ -421,26 +424,26 @@ async function drawPatchText(
   embed: Embedder,
 ): Promise<boolean> {
   const runs = placeRuns(patch);
-  const faces = new Map<string, EmbeddedFace>();
+  // The page's face by pdf.js font name; null for a font with a stand-in instead.
+  const faces = new Map<string, EmbeddedFace | null>();
   const nameOf = (run: PlacedRun) => run.span?.pdfFont || patch.pdfFont;
   const placed: { run: PlacedRun; words: PlacedWord[] }[] = [];
   for (const run of runs) {
     const name = nameOf(run);
     if (!name) return false;
-    let face = faces.get(name);
-    if (!face) {
+    if (!faces.has(name)) {
       const embedded = await embed.face(patch.page, name);
-      if (!embedded) return false;
-      face = embedded;
-      faces.set(name, face);
+      if (!embedded && !standInOf(name)) return false;
+      faces.set(name, embedded);
     }
+    const face = faces.get(name) ?? null;
     const words: PlacedWord[] = [];
     for (const word of run.words) {
       const pieces: Piece[] = [];
       for (const char of word.text) {
         const code = char.codePointAt(0);
         if (code == null) return false;
-        const target = face.cmap.has(code) ? face : await embed.supplement(name, code);
+        const target = face?.cmap.has(code) ? face : await embed.supplement(name, code);
         if (!target) return false;
         const last = pieces[pieces.length - 1];
         if (last && last.face === target) last.text += char;
@@ -655,7 +658,7 @@ export async function exportAnnotatedPdf(
   pages: PDFPageProxy[] = [],
 ): Promise<Uint8Array> {
   const document = await PDFDocument.load(originalBytes.slice(0));
-  document.registerFontkit(fontkit);
+  document.registerFontkit(soundFontkit);
   const annotations = await refreshPatchFaces(marks, pages);
   // The text each edit replaces comes out of its page before anything is drawn on it.
   const strips = stripPatchedText(document, annotations, pages);

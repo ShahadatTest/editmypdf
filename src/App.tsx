@@ -607,7 +607,11 @@ export function Editor({ sessionId }: { sessionId: string }) {
       } catch (cause) {
         if (!cancelled && loadId.current === id) {
           console.error(cause);
-          setError("Could not open this document.");
+          setError(
+            cause instanceof Error && cause.name === "PasswordException"
+              ? "This PDF is password-protected. Remove the password and open it again."
+              : "Could not open this document.",
+          );
         }
       }
     })();
@@ -741,8 +745,8 @@ export function Editor({ sessionId }: { sessionId: string }) {
       link.href = url;
       link.download = annotatedDownloadName(current.name);
       link.click();
-      // Revoke after a tick so Safari/Firefox can start the download first.
-      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+      // Keep the URL alive while Safari's download confirmation is open.
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (cause) {
       console.error(cause);
       setError("The PDF could not be written.");

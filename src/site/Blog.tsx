@@ -28,13 +28,13 @@ export function Blog() {
         </p>
         <h1 className="display">Notes from the inside of a PDF.</h1>
         <p className="lede">
-          What it takes to edit a page in place, written from the code that does it. No roadmap posts, no
-          announcements, just the engineering.
+          What it takes to edit a page in place, written from the code that does it, and what each release
+          changes for your documents. No roadmap posts, just the engineering.
         </p>
       </div>
       <div className="post-grid">
-        {POSTS.map((post) => (
-          <PostCard key={post.slug} post={post} heading="h2" />
+        {POSTS.map((post, index) => (
+          <PostCard key={post.slug} post={post} heading="h2" eager={index < 3} />
         ))}
       </div>
     </section>

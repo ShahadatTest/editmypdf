@@ -63,15 +63,17 @@ export function runItalic(run: Pick<Run, "fontStyle" | "pdfFont">, traits: FaceL
   return run.fontStyle === "italic" || !!traits(run.pdfFont)?.italic;
 }
 
-// The family list of a face without the page's own font and the aliases registered beside it:
-// the system faces that stand in for it, which do have a regular, a bold and an italic.
+// The family list of a face without the page's own font and the faces registered beside it in
+// its cut (its supplement, which stands in for the whole font when the PDF does not embed it, and
+// the styled aliases): the system faces that stand in for it, which do have a regular, a bold and
+// an italic.
 function fallbackFamily(fontFamily: string): string {
   const kept = fontFamily
     .split(",")
     .map((part) => part.trim())
     .filter((part) => {
       const bare = part.replace(/^["']|["']$/g, "");
-      return bare && !/^g_d\d+_f\d+/.test(bare) && !/-edit\d*$/.test(bare) && !/^stet-fallback-/.test(bare);
+      return bare && !/^g_d\d+_f\d+/.test(bare) && !/-edit\d*$/.test(bare) && !/^stet-(?:fallback|supp|user)-/.test(bare);
     });
   return kept.length > 0 ? kept.join(", ") : "sans-serif";
 }
