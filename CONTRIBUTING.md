@@ -12,7 +12,7 @@ npm run dev
 ```
 
 Vite serves the site and the editor on one port. `npm run build` type-checks and builds to `dist/`,
-`npm run lint` runs oxlint, and `npx tsc --noEmit -p tsconfig.app.json` type-checks the app alone.
+`npm run lint` runs oxlint, and `npm run typecheck` type-checks the app alone.
 
 Put PDFs you test with in `public/samples/`; that folder is ignored by git. `public/sample.pdf` is
 the one-page document behind the "Try a sample" button on the documents screen.
@@ -68,7 +68,7 @@ a number, write "Not stated" rather than a guess.
 ## Pull requests
 
 - Keep a pull request to one change, with a message that says what it does and why.
-- Run `npm run build` and `npm run lint` before opening it.
+- Run `npm run lint`, `npm run typecheck` and `npm run build` before opening it. The pull request workflow checks all three.
 - For editor changes, say which PDFs you checked and what you clicked.
 - The repository has no automated tests yet. Adding fidelity checks that open a sample and compare
   the editor's lines against the PDF's text items would be a very welcome contribution.
