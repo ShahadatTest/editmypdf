@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { DragEvent as ReactDragEvent, ReactNode } from "react";
 import { scanType3Fonts, type ContentElement } from "./content.ts";
 import { exportAnnotatedPdf } from "./exportPdf.ts";
-import { clamp } from "./geometry.ts";
+import { clamp, translate } from "./geometry.ts";
 import { useHistory } from "./history.ts";
 import { Inspector } from "./Inspector.tsx";
 import { PageStage } from "./PageStage.tsx";
@@ -365,6 +365,7 @@ export function Editor({ sessionId }: { sessionId: string }) {
   const [strokeStyle, setStrokeStyle] = useState<StrokeStyle>(DEFAULT_STROKE);
   const [textStyle, setTextStyle] = useState<TextStyle>(DEFAULT_TEXT);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const nudgeBaseline = useRef<{ id: string; value: Annotation[] } | null>(null);
   const [contentSelection, setContentSelection] = useState<ContentElement | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   // The mark under the pointer, on a page or in the object list; the other side mirrors it.
@@ -538,6 +539,13 @@ export function Editor({ sessionId }: { sessionId: string }) {
     },
     [history.pushBaseline, bump],
   );
+
+  const finishNudge = useCallback(() => {
+    const baseline = nudgeBaseline.current;
+    if (!baseline) return;
+    nudgeBaseline.current = null;
+    remember(baseline.value);
+  }, [remember]);
 
   const save = useCallback(
     (next: Annotation[]) => {
@@ -764,6 +772,8 @@ export function Editor({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (!event.key.startsWith("Arrow")) finishNudge();
       const target = event.target;
       const typing =
         target instanceof HTMLTextAreaElement ||
@@ -804,6 +814,34 @@ export function Editor({ sessionId }: { sessionId: string }) {
         return;
       }
       if (typing || meta || event.altKey) return;
+      if (event.key === "Escape") {
+        if (selectedRef.current) setSelectedId(null);
+        else if (toolRef.current !== "select") chooseTool("select");
+        return;
+      }
+      const direction: Record<string, [number, number]> = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, -1],
+        ArrowDown: [0, 1],
+      };
+      const delta = direction[event.key];
+      if (delta && selectedRef.current) {
+        const id = selectedRef.current;
+        const current = getAnnotations();
+        const mark = current.find((item) => item.id === id);
+        if (!mark || mark.kind === "patch") return;
+        event.preventDefault();
+        if (nudgeBaseline.current?.id !== id) {
+          finishNudge();
+          nudgeBaseline.current = { id, value: current };
+        }
+        const step = event.shiftKey ? 10 : 1;
+        history.replace(current.map((item) =>
+          item.id === id ? translate(item, delta[0] * step, delta[1] * step) : item,
+        ));
+        return;
+      }
       const key = event.key.toLowerCase();
       const shapeShortcuts: Record<string, ShapeId> = {
         l: "line",
@@ -837,9 +875,20 @@ export function Editor({ sessionId }: { sessionId: string }) {
         removeObject(selectedRef.current);
       }
     };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key.startsWith("Arrow")) finishNudge();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [history.redo, history.undo, bump, removeObject, chooseTool, pickShape, zoomTo]);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", finishNudge);
+    window.addEventListener("pointerdown", finishNudge, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", finishNudge);
+      window.removeEventListener("pointerdown", finishNudge, true);
+    };
+  }, [history.redo, history.undo, history.replace, bump, removeObject, chooseTool, pickShape, zoomTo, getAnnotations, finishNudge]);
 
   const placeEmoji = (emojiId: string) => {
     const document = loadedRef.current;

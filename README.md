@@ -195,3 +195,10 @@ sitemap all read from that file.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to run, test and change the editor and the site.
 Edit My PDF is released under the MIT licence; see [LICENSE](LICENSE).
+
+### Moving a selection with the keyboard
+
+Arrow keys move a selected annotation by one PDF unit; hold Shift for ten units.
+Holding an arrow key records one Undo step when the key is released. Escape
+clears the selection first, then returns to the Select tool on the next press.
+Text fields and open menus keep their own keyboard controls.
